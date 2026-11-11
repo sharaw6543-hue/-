@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b5d3b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Хөзөр">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Хөзөр</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#0b5d3b;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:radial-gradient(ellipse at center,#14804f 0%,#0b5d3b 70%,#073d27 100%);overscroll-behavior:none}
+#app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+h1{margin:8px 0 4px;font-size:34px;text-align:center}
+.sub{text-align:center;opacity:.85;margin-bottom:20px}
+.panel{background:rgba(0,0,0,.25);border-radius:16px;padding:16px;margin-bottom:14px}
+input{width:100%;font-size:18px;padding:12px 14px;border-radius:12px;border:0;margin-bottom:10px;background:#fff;color:#111}
+button{font-size:17px;font-weight:600;padding:12px 16px;border:0;border-radius:12px;background:#f5c542;color:#222;width:100%}
+button.sec{background:rgba(255,255,255,.18);color:#fff}
+button:disabled{opacity:.45}
+button:active{transform:scale(.98)}
+.row{display:flex;gap:8px}
+.code{font-size:44px;font-weight:800;letter-spacing:8px;text-align:center;margin:6px 0}
+.pl{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.12);font-size:18px}
+.dot{width:10px;height:10px;border-radius:50%;background:#7f7;flex:none}.dot.off{background:#888}
+.tag{margin-left:auto;font-size:13px;opacity:.8}
+.toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);background:#b3261e;color:#fff;padding:10px 16px;border-radius:12px;z-index:9;max-width:90%;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+/* тоглоом */
+.opps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:4px 0 8px}
+.opp{background:rgba(0,0,0,.28);border-radius:12px;padding:6px 10px;min-width:84px;text-align:center;font-size:14px;border:2px solid transparent}
+.opp.att{border-color:#f5c542}.opp.def{border-color:#5ac8fa}.opp.out{opacity:.4}
+.opp b{display:block;font-size:13px;opacity:.9;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 auto}
+.mid{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;min-height:200px}
+.deck{display:flex;align-items:center;gap:10px;font-size:15px;opacity:.95}
+.table{display:flex;flex-wrap:wrap;gap:10px 12px;justify-content:center;min-height:100px}
+.pair{position:relative;width:60px;height:86px}
+.pair .card.d{position:absolute;left:14px;top:12px}
+.card{width:50px;height:72px;border-radius:7px;background:#fff;color:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:19px;line-height:1.05;box-shadow:0 2px 5px rgba(0,0,0,.45);flex:none;user-select:none;border:2px solid #fff}
+.card.red{color:#d11}
+.card .s{font-size:22px}
+.card.trump{border-color:#f5c542}
+.card.back{background:repeating-linear-gradient(45deg,#1d4fa3,#1d4fa3 5px,#2b66cc 5px,#2b66cc 10px);color:transparent}
+.pair.need .card.a{outline:3px dashed #5ac8fa}
+.status{text-align:center;font-size:16px;min-height:22px;margin:4px 0}
+.log{text-align:center;font-size:13px;opacity:.75;min-height:18px}
+.hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:8px 0}
+.hand .card{width:54px;height:78px;transition:transform .08s}
+.hand .card.sel{transform:translateY(-12px);outline:3px solid #5ac8fa}
+.acts{display:flex;gap:8px;margin-top:6px}
+.big{font-size:24px;text-align:center;margin:10px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const SYM = {s:'♠',h:'♥',d:'♦',c:'♣'}, RL = {11:'J',12:'Q',13:'K',14:'A'};
+const $app = document.getElementById('app');
+let S = null;          // {room,pid,name}
+try { S = JSON.parse(localStorage.getItem('hz') || 'null'); } catch {}
+let st = null, es = null, sel = null, toastT = null, nameDraft = localStorage.getItem('hzname') || '', codeDraft = (location.hash || '').replace('#','').toUpperCase().slice(0,4);
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m) {
+  document.querySelector('.toast')?.remove();
+  const d = document.createElement('div'); d.className = 'toast'; d.textContent = m; document.body.appendChild(d);
+  clearTimeout(toastT); toastT = setTimeout(() => d.remove(), 2600);
+}
+async function api(path, body) {
+  try {
+    const r = await fetch(path, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body)});
+    return await r.json();
+  } catch { return {error:'Сервертэй холбогдож чадсангүй'}; }
+}
+function save() { S ? localStorage.setItem('hz', JSON.stringify(S)) : localStorage.removeItem('hz'); }
+
+function connect() {
+  if (es) es.close();
+  es = new EventSource(`/api/events?room=${S.room}&pid=${S.pid}`);
+  es.onmessage = (e) => { st = JSON.parse(e.data); render(); };
+  es.onerror = async () => {
+    try {
+      const r = await fetch(`/api/check?room=${S.room}&pid=${S.pid}`);
+      if (r.status === 404) { es.close(); S = null; st = null; save(); toast('Өрөө хаагдсан байна'); render(); }
+    } catch {}
+  };
+}
+
+async function enter(path) {
+  const name = document.getElementById('name').value.trim();
+  nameDraft = name; localStorage.setItem('hzname', name);
+  const code = (document.getElementById('code')?.value || '').trim().toUpperCase();
+  const r = await api(path, {name, room: code, gameType:'durak'});
+  if (r.error) return toast(r.error);
+  S = {room:r.room, pid:r.pid}; save(); history.replaceState(null,'','#'+S.room); connect(); render();
+}
+async function act(action) {
+  const r = await api('/api/action', {room:S.room, pid:S.pid, action});
+  if (r.error) toast(r.error);
+}
+async function leave() {
+  if (st && st.game && st.game.phase === 'play' && !confirm('Тоглоомоос гарах уу?')) return;
+  await api('/api/leave', {room:S.room, pid:S.pid});
+  if (es) es.close(); S = null; st = null; sel = null; save(); history.replaceState(null,'',location.pathname); render();
+}
+
+function cardEl(c, cls = '', trump) {
+  const red = c.s === 'h' || c.s === 'd';
+  return `<div class="card ${red?'red':''} ${c.s===trump?'trump':''} ${cls}"><span>${RL[c.r]||c.r}</span><span class="s">${SYM[c.s]}</span></div>`;
+}
+
+function renderHome() {
+  $app.innerHTML = `
+    <h1>🃏 Хөзөр</h1><div class="sub">Найзуудтайгаа онлайнаар тогло</div>
+    <div class="panel">
+      <input id="name" placeholder="Таны нэр" maxlength="16" value="${esc(nameDraft)}">
+      <button id="create">Шинэ өрөө үүсгэх</button>
+    </div>
+    <div class="panel">
+      <input id="code" placeholder="Өрөөний код (жишээ: K7QD)" maxlength="4" value="${esc(codeDraft)}" style="text-transform:uppercase;letter-spacing:4px;text-align:center">
+      <button id="join" class="sec">Кодоор нэгдэх</button>
+    </div>
+    <div class="sub" style="font-size:13px">Тоглоомууд: Дурак (2–5 хүн)</div>`;
+  document.getElementById('create').onclick = () => enter('/api/create');
+  document.getElementById('join').onclick = () => enter('/api/join');
+}
+
+function renderLobby() {
+  const link = location.origin + '/#' + st.code;
+  $app.innerHTML = `
+    <h1>${esc(st.gameName)}</h1>
+    <div class="panel">
+      <div class="sub" style="margin:0">Өрөөний код</div>
+      <div class="code">${st.code}</div>
+      <button id="share" class="sec">Найзууддаа илгээх</button>
+    </div>
+    <div class="panel">
+      <div style="opacity:.8;margin-bottom:4px">Тоглогчид (${st.players.length}/${st.max})</div>
+      ${st.players.map(p => `<div class="pl"><span class="dot ${p.online?'':'off'}"></span>${esc(p.name)}${p.host?'<span class="tag">эзэн</span>':''}</div>`).join('')}
+    </div>
+    ${st.isHost
+      ? `<button id="start" ${st.players.length < st.min ? 'disabled' : ''}>Тоглоом эхлүүлэх</button>${st.players.length < st.min ? '<div class="sub" style="margin-top:8px">Хамгийн багадаа '+st.min+' тоглогч хэрэгтэй</div>' : ''}`
+      : '<div class="sub">Өрөөний эзэн эхлүүлэхийг хүлээж байна…</div>'}
+    <div style="height:10px"></div><button id="leave" class="sec">Гарах</button>`;
+  document.getElementById('share').onclick = async () => {
+    const text = `Хөзөр тоглоё! Өрөөний код: ${st.code}`;
+    if (navigator.share) { try { await navigator.share({title:'Хөзөр', text, url: link}); return; } catch { return; } }
+    try { await navigator.clipboard.writeText(text + '\n' + link); toast('Хуулагдлаа'); } catch { prompt('Холбоос:', link); }
+  };
+  const b = document.getElementById('start'); if (b) b.onclick = async () => { const r = await api('/api/start', {room:S.room, pid:S.pid}); if (r.error) toast(r.error); };
+  document.getElementById('leave').onclick = leave;
+}
+
+function renderGame() {
+  const g = st.game, me = g.me, myTurnDef = me === g.def;
+  const und = g.table.map((p,i) => [p,i]).filter(([p]) => !p.d);
+  const allDef = g.table.length > 0 && und.length === 0;
+  let status;
+  if (g.phase === 'over') status = g.loser ? `🤡 Дурак: ${esc(g.loser)}` : 'Тэнцлээ';
+  else if (!g.table.length) status = me === g.att ? 'Таны ээлж — довтолж хөзөр тавь' : `${esc(g.seats[g.att].name)} довтолно`;
+  else if (und.length) status = myTurnDef ? 'Хөзрөө сонгож хаа, эсвэл ав' : `${esc(g.seats[g.def].name)} хамгаалж байна`;
+  else status = me === g.att ? 'Нэмж тавих эсвэл «Бито» дар' : 'Нэмж тавьж болно';
+  if (sel && !g.hand.some(c => c.r === sel.r && c.s === sel.s)) sel = null;
+
+  $app.innerHTML = `
+    <div class="opps">${g.seats.map((s,i) => i === me ? '' :
+      `<div class="opp ${i===g.att?'att':''} ${i===g.def?'def':''} ${s.out?'out':''}"><b>${esc(s.name)}</b>🂠 ${s.count}<div style="font-size:11px">${i===g.att?'довтлогч':i===g.def?'хамгаалагч':''}</div></div>`).join('')}</div>
+    <div class="mid">
+      <div class="deck">${g.trumpCard ? cardEl(g.trumpCard,'',g.trump) : `<div class="card trump"><span class="s">${SYM[g.trump]}</span></div>`}<span>Козырь ${SYM[g.trump]}<br>Тавиур: ${g.deckCount}</span></div>
+      <div class="table">${g.table.map((p,i) => `<div class="pair ${(!p.d && sel && myTurnDef)?'need':''}" data-i="${i}">${cardEl(p.a,'a',g.trump)}${p.d?cardEl(p.d,'d',g.trump):''}</div>`).join('')}</div>
+    </div>
+    <div class="status">${status}</div>
+    <div class="log">${esc(g.log||'')}</div>
+    ${me >= 0 && g.seats[me].out && g.phase==='play' ? '<div class="big">🎉 Та хөзрөө дуусгалаа!</div>' : ''}
+    <div class="hand">${g.hand.map((c,i) => cardEl(c, sel && sel.r===c.r && sel.s===c.s ? 'sel' : '', g.trump).replace('<div','<div data-h="'+i+'"')).join('')}</div>
+    <div class="acts">
+      ${g.phase==='play' && myTurnDef && und.length ? '<button id="take">Авах</button>' : ''}
+      ${g.phase==='play' && me===g.att && allDef ? '<button id="done">Бито</button>' : ''}
+      ${g.phase==='over' && st.isHost ? '<button id="again">Дахин тоглох</button>' : ''}
+      ${g.phase==='over' && !st.isHost ? '<div class="sub" style="width:100%">Эзэн дахин эхлүүлэхийг хүлээж байна…</div>' : ''}
+    </div>
+    ${g.phase==='over' ? '<div style="height:8px"></div><button id="leave" class="sec">Гарах</button>' : ''}`;
+
+  document.querySelectorAll('[data-h]').forEach(el => el.onclick = () => {
+    if (g.phase !== 'play') return;
+    const c = g.hand[+el.dataset.h];
+    if (myTurnDef) {
+      if (!und.length) return toast('Одоохондоо хаах хөзөр алга');
+      if (und.length === 1) return act({type:'defend', index: und[0][1], card: c});
+      sel = (sel && sel.r===c.r && sel.s===c.s) ? null : c; render();
+    } else act({type:'attack', card: c});
+  });
+  document.querySelectorAll('.pair').forEach(el => el.onclick = () => {
+    const i = +el.dataset.i;
+    if (sel && myTurnDef && !g.table[i].d) { const c = sel; sel = null; act({type:'defend', index:i, card:c}); }
+    else if (myTurnDef && !g.table[i].d && !sel) toast('Эхлээд өөрийн хөзрийг сонго');
+  });
+  const t = document.getElementById('take'); if (t) t.onclick = () => act({type:'take'});
+  const d = document.getElementById('done'); if (d) d.onclick = () => act({type:'done'});
+  const a = document.getElementById('again'); if (a) a.onclick = async () => { const r = await api('/api/start', {room:S.room, pid:S.pid}); if (r.error) toast(r.error); };
+  const l = document.getElementById('leave'); if (l) l.onclick = leave;
+}
+
+function render() {
+  if (!S) return renderHome();
+  if (!st) { $app.innerHTML = '<h1>🃏</h1><div class="sub">Холбогдож байна…</div>'; return; }
+  st.game ? renderGame() : renderLobby();
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (S) connect();
+render();
+</script>
+</body>
+</html>
